@@ -1,0 +1,4 @@
+pygame
+Pillow
+pystray
+requests

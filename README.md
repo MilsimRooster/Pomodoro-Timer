@@ -1,41 +1,59 @@
-# Pomodoro Timer 🍅
+# Pomodoro Timer
 
-**The ultimate hacker-movie-inspired Pomodoro timer**  
-A dual-timer Pomodoro beast with Matrix green-on-black vibes, full-screen gallery slideshow mode, custom beeps, and an endless shuffling chill media player. Built for deep focus sessions in true cyberpunk style.
+A Windows-focused Pomodoro timer with dual countdowns, custom alert sounds, a gallery background mode, tray support, and a small built-in media player.
 
-## 🚀 Features
+## Features
 
-- **Dual Pomodoro Timers**  
-  - Timer 1: Short intervals (default 5 min – perfect for breaks)  
-  - Timer 2: Long sessions (default 30 min – classic focus pomodoro)  
-  - Custom interval (1-60 min) + selectable beep sounds
+- Dual timers for short breaks and long focus sessions
+- Custom WAV alert sounds from the `beeps` folder
+- Gallery skin that displays local images from `backgrounds`
+- Matrix, Gallery, Aggregator, Metals, Weather, Break Time, Rocket Launches, and Podcasts modes
+- Local media playback from `media`
+- System tray minimize/restore
+- Resizable Tkinter UI
+- Polished app and tray icon
 
-- **Matrix Theme**
-  - Classic black background with glowing green Consolas text
+## Requirements
 
-- **Gallery Skin Mode** 🖼️
-  - Switch to full-screen auto-advancing slideshow (every 5s)  
-  - Click or arrow keys to navigate, Esc to return  
-  - Loads images from local `backgrounds` folder
+- Windows 10/11
+- Python 3.11 recommended
+- Python packages:
 
-- **Built-in Media Player** 🎧  
-  - Play local tracks (.wav, .mp3, .ogg) from `media` folder  
-  - Play / Stop / Next buttons  
-  - Shuffle mode (true random every track)  
-  - **Continuous playback** – auto-advances when song ends (sequential or shuffled)  
-  - Independent volume slider
+```powershell
+python -m pip install -r requirements.txt
+```
 
-- **System Tray Support** 🗕  
-  - Minimize to tray with custom green icon  
-  - Restore or exit from tray menu
+## Run From Source
 
-- **Custom Sounds** 🔊  
-  - Short beep .wav files in `beeps` folder for timer alerts  
-  - Fallback to system bell if load fails
+```powershell
+python .\beep_timer_gui.pyw
+```
 
-## 📦 Requirements
+The repo includes the required `beeps` folder. Optional local folders:
 
-- Python 3.7+ (tested on 3.13)
-- Install dependencies:
-  ```bash
-  pip install pystray pillow pygame
+- `backgrounds`: `.jpg`, `.jpeg`, `.png`, `.bmp`, or `.gif` files for Gallery mode
+- `media`: `.wav`, `.mp3`, `.ogg`, or `.oga` files for the media player
+
+Those folders can be large and personal, so only `beeps` is tracked by default.
+
+## Build EXE
+
+Install PyInstaller:
+
+```powershell
+python -m pip install pyinstaller
+```
+
+Build:
+
+```powershell
+python -m PyInstaller --noconfirm --onefile --windowed --name TIMER --icon timer.ico --add-data "timer.ico;." --add-data "timer_icon.png;." beep_timer_gui.pyw
+```
+
+The output will be created at:
+
+```text
+dist\TIMER.exe
+```
+
+For normal use, keep `beeps`, `backgrounds`, and `media` beside the EXE. The EXE can run without `backgrounds` or `media`, but it needs at least one WAV file in `beeps`.
