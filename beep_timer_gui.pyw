@@ -115,7 +115,7 @@ except Exception:
     pass
 root.configure(bg=BG_COLOR)
 root.resizable(True, True)
-root.minsize(700, 760)
+root.minsize(520, 420)
 background_label = tk.Label(root, bg=BG_COLOR)
 background_label.place(x=0, y=0, relwidth=1, relheight=1)
 background_label.lower()
@@ -144,6 +144,35 @@ minimize_button.pack(side="right", padx=20)
 hotkeys_label = tk.Label(top_frame, text="Hotkeys: M=Matrix • G=Gallery • N=News • I=Metals • W=Weather • B=Break • R=Rockets • P=Podcasts",
                          font=("Consolas", 9), bg=BG_COLOR, fg=GRAY_COLOR)
 hotkeys_label.pack(side="right", padx=20)
+
+def sync_topbar_layout(event=None):
+    width = top_frame.winfo_width()
+    if width and width < 980:
+        hotkeys_label.pack_forget()
+    elif not hotkeys_label.winfo_ismapped():
+        hotkeys_label.pack(side="right", padx=20)
+
+top_frame.bind("<Configure>", sync_topbar_layout)
+
+matrix_scroll = tk.Canvas(root, bg=BG_COLOR, highlightthickness=0)
+matrix_scrollbar = ttk.Scrollbar(root, orient="vertical", command=matrix_scroll.yview)
+matrix_scroll.configure(yscrollcommand=matrix_scrollbar.set)
+matrix_content = tk.Frame(matrix_scroll, bg=BG_COLOR)
+matrix_window = matrix_scroll.create_window((0, 0), window=matrix_content, anchor="nw")
+
+def sync_matrix_scroll_region(event=None):
+    matrix_scroll.configure(scrollregion=matrix_scroll.bbox("all"))
+
+def sync_matrix_width(event=None):
+    matrix_scroll.itemconfigure(matrix_window, width=matrix_scroll.winfo_width())
+
+def on_matrix_mousewheel(event):
+    matrix_scroll.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+matrix_content.bind("<Configure>", sync_matrix_scroll_region)
+matrix_scroll.bind("<Configure>", sync_matrix_width)
+matrix_scroll.bind("<Enter>", lambda e: matrix_scroll.focus_set())
+matrix_scroll.bind("<MouseWheel>", on_matrix_mousewheel)
 def create_image():
     icon_path = resource_path("timer_icon.png")
     if os.path.exists(icon_path):
@@ -286,6 +315,8 @@ def apply_skin(event=None):
     if selected != current_skin:
         current_skin = selected
         top_frame.pack_forget()
+        matrix_scroll.pack_forget()
+        matrix_scrollbar.pack_forget()
         timer1_frame.pack_forget()
         sep.pack_forget()
         timer2_frame.pack_forget()
@@ -322,11 +353,7 @@ def apply_skin(event=None):
         background_label.config(image='', bg=BG_COLOR)
         if selected == "Matrix":
             top_frame.pack(fill="x", pady=5)
-            timer1_frame.pack(fill="x", pady=8, padx=25)
-            sep.pack(fill="x", pady=10, padx=40)
-            timer2_frame.pack(fill="x", pady=8, padx=25)
-            media_frame.pack(fill="x", pady=20, padx=25)
-            volume_label.pack(pady=10)
+            pack_matrix_view()
         elif selected == "Gallery":
             start_slideshow()
             bind_gallery_keys()
@@ -934,10 +961,11 @@ class BeepTimer:
         heading_label.pack(anchor="w", pady=(0, 4))
         controls = tk.Frame(self.frame, bg=BG_COLOR)
         controls.pack(fill="x", pady=2)
+        controls.columnconfigure(1, weight=1)
         sound_label = tk.Label(controls, text="Sound:", width=14, anchor="e", bg=BG_COLOR, fg=FG_COLOR, font=TEXT_FONT)
         sound_label.grid(row=0, column=0, sticky="e")
-        self.sound_combo = ttk.Combobox(controls, values=display_names, state="readonly", width=36, font=TEXT_FONT)
-        self.sound_combo.grid(row=0, column=1, padx=(8, 20), sticky="w")
+        self.sound_combo = ttk.Combobox(controls, values=display_names, state="readonly", width=26, font=TEXT_FONT)
+        self.sound_combo.grid(row=0, column=1, padx=(8, 12), sticky="ew")
         self.sound_combo.set(display_names[0])
         interval_label = tk.Label(controls, text="Interval (min):", width=15, anchor="e", bg=BG_COLOR, fg=FG_COLOR, font=TEXT_FONT)
         interval_label.grid(row=1, column=0, sticky="e")
@@ -945,13 +973,13 @@ class BeepTimer:
                                        bg=BG_COLOR, fg=FG_COLOR, buttonbackground=ACCENT_COLOR,
                                        insertbackground=FG_COLOR, selectbackground=ACCENT_COLOR,
                                        relief="flat")
-        self.interval_spin.grid(row=1, column=1, padx=(8, 20), sticky="w")
+        self.interval_spin.grid(row=1, column=1, padx=(8, 12), sticky="w")
         self.interval_spin.delete(0, "end")
         self.interval_spin.insert(0, default_min)
         self.play_button = tk.Button(controls, text="Play", command=self.test_beep, width=10,
                                      font=BUTTON_FONT, bg=ACCENT_COLOR, fg=FG_COLOR,
                                      activebackground="#004400", relief="flat")
-        self.play_button.grid(row=0, column=2, rowspan=2, padx=20, pady=2)
+        self.play_button.grid(row=0, column=2, rowspan=2, padx=(8, 0), pady=2, sticky="e")
         self.status_label = tk.Label(self.frame, text="Not running", font=TEXT_FONT, bg=BG_COLOR, fg=GRAY_COLOR)
         self.status_label.pack(anchor="w", pady=2)
         self.elapsed_label = tk.Label(self.frame, text="", font=HEADING_FONT, bg=BG_COLOR, fg=FG_COLOR)
@@ -1047,21 +1075,22 @@ class BeepTimer:
             self.after_id = root.after(interval_sec * 1000, self.do_beep)
             self.running = True
             self.start_button.config(text="Stop Timer", bg=ALERT_RED, fg="white")
-timer1 = BeepTimer(root, "Timer 1 (Short)", default_min=5)
+timer1 = BeepTimer(matrix_content, "Timer 1 (Short)", default_min=5)
 timer1_frame = timer1.frame
-sep = ttk.Separator(root, orient="horizontal")
-timer2 = BeepTimer(root, "Timer 2 (Long)", default_min=30)
+sep = ttk.Separator(matrix_content, orient="horizontal")
+timer2 = BeepTimer(matrix_content, "Timer 2 (Long)", default_min=30)
 timer2_frame = timer2.frame
 # Media Player section
-media_frame = tk.Frame(root, bg=BG_COLOR)
+media_frame = tk.Frame(matrix_content, bg=BG_COLOR)
 tk.Label(media_frame, text="Media Player (Chill Mode)", font=HEADING_FONT, bg=BG_COLOR, fg=FG_COLOR).pack(anchor="w", pady=(0, 8))
 media_controls = tk.Frame(media_frame, bg=BG_COLOR)
 media_controls.pack(fill="x", pady=5)
+media_controls.columnconfigure(1, weight=1)
 tk.Label(media_controls, text="Track:", width=14, anchor="e", bg=BG_COLOR, fg=FG_COLOR, font=TEXT_FONT).grid(row=0, column=0, sticky="e")
 if not media_available:
     media_display_names = ["No media files - add to 'media' folder"]
-media_combo = ttk.Combobox(media_controls, values=media_display_names, state="readonly", width=45, font=TEXT_FONT)
-media_combo.grid(row=0, column=1, padx=(8, 10), sticky="w")
+media_combo = ttk.Combobox(media_controls, values=media_display_names, state="readonly", width=28, font=TEXT_FONT)
+media_combo.grid(row=0, column=1, padx=(8, 10), sticky="ew")
 shuffle_var = tk.BooleanVar(value=False)
 shuffle_check = tk.Checkbutton(media_controls, text="Shuffle", variable=shuffle_var, bg=BG_COLOR, fg=FG_COLOR, selectcolor=ACCENT_COLOR,
                                activebackground=BG_COLOR, activeforeground=FG_COLOR)
@@ -1219,13 +1248,20 @@ else:
     media_combo.config(state="disabled")
     if media_display_names:
         media_combo.set(media_display_names[0])
-volume_label = tk.Label(root, text="(Timer beeps use system volume • Media has independent control)", font=("Consolas", 9), fg=GRAY_COLOR, bg=BG_COLOR)
+volume_label = tk.Label(matrix_content, text="(Timer beeps use system volume • Media has independent control)", font=("Consolas", 9), fg=GRAY_COLOR, bg=BG_COLOR)
+
+def pack_matrix_view():
+    matrix_scrollbar.pack(side="right", fill="y")
+    matrix_scroll.pack(side="left", fill="both", expand=True)
+    timer1_frame.pack(fill="x", pady=8, padx=18)
+    sep.pack(fill="x", pady=8, padx=28)
+    timer2_frame.pack(fill="x", pady=8, padx=18)
+    media_frame.pack(fill="x", pady=14, padx=18)
+    volume_label.pack(pady=8)
+    root.after_idle(sync_matrix_scroll_region)
+
 top_frame.pack(fill="x", pady=5)
-timer1_frame.pack(fill="x", pady=8, padx=25)
-sep.pack(fill="x", pady=10, padx=40)
-timer2_frame.pack(fill="x", pady=8, padx=25)
-media_frame.pack(fill="x", pady=20, padx=25)
-volume_label.pack(pady=10)
+pack_matrix_view()
 # Global hotkey bindings (case-insensitive)
 root.bind("<m>", lambda e: switch_skin("Matrix"))
 root.bind("<M>", lambda e: switch_skin("Matrix"))

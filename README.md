@@ -10,7 +10,7 @@ A Windows-focused Pomodoro timer with dual countdowns, custom alert sounds, a ga
 - Matrix, Gallery, Aggregator, Metals, Weather, Break Time, Rocket Launches, and Podcasts modes
 - Local media playback from `media`
 - System tray minimize/restore
-- Resizable Tkinter UI
+- Resizable Tkinter UI with a scrollable main timer view for smaller displays
 - Polished app and tray icon
 
 ## Requirements
