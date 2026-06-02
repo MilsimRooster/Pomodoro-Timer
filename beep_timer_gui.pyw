@@ -1,14 +1,15 @@
-import tkinter as tk
-from tkinter import ttk, messagebox
+﻿import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
 import glob
 import os
 import time
 import platform
 import sys
 from pathlib import Path
+import json
 import pygame
 import random
-from PIL import Image, ImageDraw, ImageTk, ImageEnhance
+from PIL import Image, ImageDraw, ImageTk, ImageEnhance, ImageFont
 import pystray
 import threading
 import webbrowser
@@ -38,16 +39,52 @@ def resource_path(*parts):
     if local_path.exists():
         return str(local_path)
     return str(RESOURCE_DIR.joinpath(*parts))
-# ------------------- Matrix Theme -------------------
-BG_COLOR = "black"
-FG_COLOR = "#00FF00"
-ACCENT_COLOR = "#003300"
-ALERT_RED = "#FF0000"
-ALERT_ORANGE = "#FF8800"
-GRAY_COLOR = "#888888"
-POSITIVE_GREEN = "#00FF88"
-NEGATIVE_RED = "#FF4444"
-TITLE_FONT = ("Consolas", 16, "bold")
+
+def load_settings():
+    try:
+        if SETTINGS_FILE.exists():
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"Settings load failed: {e}")
+    return {}
+
+def save_settings(settings):
+    try:
+        SETTINGS_DIR.mkdir(parents=True, exist_ok=True)
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=2)
+    except Exception as e:
+        print(f"Settings save failed: {e}")
+
+def save_background_path(path):
+    settings = load_settings()
+    if path:
+        settings["background_path"] = path
+    else:
+        settings.pop("background_path", None)
+    save_settings(settings)
+# ------------------- Liquid Matrix Theme -------------------
+SETTINGS_DIR = Path(os.getenv("APPDATA", str(APP_DIR))).joinpath("Timer")
+SETTINGS_FILE = SETTINGS_DIR.joinpath("settings.json")
+BG_COLOR = "#04100e"
+FG_COLOR = "#d8fff2"
+ACCENT_COLOR = "#15483f"
+MATRIX_BG = "#061411"
+MATRIX_PANEL_BG = "#0a2823"
+MATRIX_PANEL_BORDER = "#78ffe1"
+MATRIX_DIM_GREEN = "#75a99a"
+MATRIX_CYAN = "#8fffee"
+MATRIX_GLOW = "#7dffc8"
+GLASS_HILITE = "#d7fff7"
+PAGE_GLASS_BG = "#081b18"
+PANEL_GLASS_BG = "#0f302a"
+ALERT_RED = "#ff5f6d"
+ALERT_ORANGE = "#ffb86b"
+GRAY_COLOR = "#9fb8b2"
+POSITIVE_GREEN = "#7dffc8"
+NEGATIVE_RED = "#ff6b7d"
+TITLE_FONT = ("Consolas", 18, "bold")
 HEADING_FONT = ("Consolas", 13, "bold")
 LARGE_PRICE_FONT = ("Consolas", 48, "bold")
 MEDIUM_PRICE_FONT = ("Consolas", 32, "bold")
@@ -89,7 +126,7 @@ BACKGROUND_FOLDER = app_path("backgrounds")
 if not os.path.exists(BACKGROUND_FOLDER):
     os.makedirs(BACKGROUND_FOLDER)
 def load_backgrounds():
-    exts = ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.gif"]
+    exts = ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.webp", "*.gif"]
     images = []
     for ext in exts:
         images.extend(glob.glob(os.path.join(BACKGROUND_FOLDER, ext)))
@@ -114,6 +151,8 @@ try:
 except Exception:
     pass
 root.configure(bg=BG_COLOR)
+root.option_add("*BorderWidth", 0)
+root.option_add("*HighlightThickness", 0)
 root.resizable(True, True)
 root.minsize(520, 420)
 background_label = tk.Label(root, bg=BG_COLOR)
@@ -121,28 +160,38 @@ background_label.place(x=0, y=0, relwidth=1, relheight=1)
 background_label.lower()
 style = ttk.Style()
 style.theme_use('clam')
-style.configure("TCombobox", background=BG_COLOR, foreground=FG_COLOR,
-                fieldbackground=BG_COLOR, bordercolor=FG_COLOR,
-                arrowcolor=FG_COLOR)
+style.configure("TCombobox", background=MATRIX_PANEL_BG, foreground=FG_COLOR,
+                fieldbackground="#102924", bordercolor=MATRIX_PANEL_BORDER,
+                lightcolor=MATRIX_PANEL_BORDER, darkcolor=MATRIX_PANEL_BG,
+                arrowcolor=MATRIX_CYAN, padding=5)
+style.configure("Horizontal.TSeparator", background="#b6fff0")
 style.map("TCombobox",
           fieldbackground=[("readonly", BG_COLOR)],
           background=[("readonly", BG_COLOR)])
-top_frame = tk.Frame(root, bg=BG_COLOR)
-top_frame.pack(fill="x", pady=5)
-title_label = tk.Label(top_frame, text="Pomodoro Timer", font=TITLE_FONT, bg=BG_COLOR, fg=FG_COLOR)
+top_frame = tk.Frame(root, bg=MATRIX_PANEL_BG, highlightthickness=1, highlightbackground="#b6fff0")
+top_frame.pack(fill="x", padx=10, pady=(10, 6))
+title_label = tk.Label(top_frame, text="Pomodoro Timer", font=TITLE_FONT, bg=MATRIX_PANEL_BG, fg=GLASS_HILITE)
 title_label.pack(side="left", padx=20)
-skin_label = tk.Label(top_frame, text="Skin:", font=TEXT_FONT, bg=BG_COLOR, fg=FG_COLOR)
+skin_label = tk.Label(top_frame, text="Skin:", font=TEXT_FONT, bg=MATRIX_PANEL_BG, fg=MATRIX_CYAN)
 skin_label.pack(side="right", padx=(0, 8))
-skin_combo = ttk.Combobox(top_frame, values=["Matrix", "Gallery", "Aggregator", "Metals", "Weather", "Break Time", "Rocket Launches", "Podcasts"], state="readonly", width=16, font=TEXT_FONT)
+skin_combo = ttk.Combobox(top_frame, values=["Matrix", "Gallery", "Aggregator", "Metals", "Weather"], state="readonly", width=16, font=TEXT_FONT)
 skin_combo.set("Matrix")
 skin_combo.pack(side="right")
+background_button = tk.Button(top_frame, text="Background", command=lambda: show_background_menu(), width=13,
+                              font=BUTTON_FONT, bg=ACCENT_COLOR, fg=FG_COLOR,
+                              activebackground="#1f6d5f", activeforeground=GLASS_HILITE,
+                              relief="flat", bd=0, highlightthickness=1,
+                              highlightbackground="#b6fff0")
+background_button.pack(side="right", padx=(14, 4))
 minimize_button = tk.Button(top_frame, text="Minimize to Tray", command=lambda: hide_to_tray(), width=18,
                             font=BUTTON_FONT, bg=ACCENT_COLOR, fg=FG_COLOR,
-                            activebackground="#004400", relief="flat", bd=0)
+                            activebackground="#1f6d5f", activeforeground=GLASS_HILITE,
+                            relief="flat", bd=0, highlightthickness=1,
+                            highlightbackground="#b6fff0")
 minimize_button.pack(side="right", padx=20)
 # Hotkey reminder label in top bar
-hotkeys_label = tk.Label(top_frame, text="Hotkeys: M=Matrix • G=Gallery • N=News • I=Metals • W=Weather • B=Break • R=Rockets • P=Podcasts",
-                         font=("Consolas", 9), bg=BG_COLOR, fg=GRAY_COLOR)
+hotkeys_label = tk.Label(top_frame, text="Hotkeys: M=Matrix - G=Gallery - N=News - I=Metals - W=Weather",
+                         font=("Consolas", 9), bg=MATRIX_PANEL_BG, fg=GRAY_COLOR)
 hotkeys_label.pack(side="right", padx=20)
 
 def sync_topbar_layout(event=None):
@@ -154,10 +203,10 @@ def sync_topbar_layout(event=None):
 
 top_frame.bind("<Configure>", sync_topbar_layout)
 
-matrix_scroll = tk.Canvas(root, bg=BG_COLOR, highlightthickness=0)
+matrix_scroll = tk.Canvas(root, bg=MATRIX_BG, highlightthickness=0, bd=0)
 matrix_scrollbar = ttk.Scrollbar(root, orient="vertical", command=matrix_scroll.yview)
 matrix_scroll.configure(yscrollcommand=matrix_scrollbar.set)
-matrix_content = tk.Frame(matrix_scroll, bg=BG_COLOR)
+matrix_content = tk.Frame(matrix_scroll, bg=MATRIX_BG)
 matrix_window = matrix_scroll.create_window((0, 0), window=matrix_content, anchor="nw")
 
 def sync_matrix_scroll_region(event=None):
@@ -192,14 +241,19 @@ current_icon = None
 slideshow_id = None
 current_index = 0
 current_photo = None
+custom_background_photo = None
+custom_background_gif = None
+custom_background_frame_index = 0
+custom_background_after_id = None
+custom_background_size = (0, 0)
+custom_background_path = load_settings().get("background_path", "")
 current_skin = "Matrix"
+matrix_header_photo = None
+matrix_header_size = (0, 0)
 gallery_hint = None
 aggregator_hint = None
 metals_hint = None
 weather_hint = None
-break_hint = None
-launches_hint = None
-podcasts_hint = None
 def resize_to_fit(img, width, height):
     if width <= 1 or height <= 1:
         return img
@@ -218,6 +272,208 @@ def resize_to_fit(img, width, height):
     y = (height - new_height) // 2
     canvas.paste(img, (x, y))
     return canvas
+
+def matrix_font(size, bold=False):
+    font_names = ["consolab.ttf" if bold else "consola.ttf",
+                  "C:/Windows/Fonts/consolab.ttf" if bold else "C:/Windows/Fonts/consola.ttf"]
+    for font_name in font_names:
+        try:
+            return ImageFont.truetype(font_name, size)
+        except Exception:
+            pass
+    return ImageFont.load_default()
+
+def render_matrix_header(width, height):
+    width = max(320, width)
+    height = max(100, height)
+    rng = random.Random(2600 + width * 7 + height)
+    img = Image.new("RGB", (width, height), MATRIX_BG)
+    draw = ImageDraw.Draw(img)
+    for y in range(height):
+        shade = int(4 + (y / max(1, height)) * 18)
+        draw.line((0, y, width, y), fill=(0, shade, max(4, shade // 2)))
+    chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ$#@%&<>/\\[]{}"
+    small_font = matrix_font(12)
+    for x in range(-8, width, 14):
+        drop_len = rng.randint(5, 15)
+        start_y = rng.randint(-height // 2, height)
+        for i in range(drop_len):
+            y = start_y + i * 13
+            if -12 <= y < height:
+                intensity = max(35, 230 - i * 18)
+                color = (20, intensity, 105 if i < 3 else 60)
+                if i == 0:
+                    color = (190, 255, 225)
+                draw.text((x, y), rng.choice(chars), fill=color, font=small_font)
+    for _ in range(18):
+        x1 = rng.randint(0, width)
+        y1 = rng.randint(10, height - 10)
+        x2 = min(width, x1 + rng.randint(35, 180))
+        draw.line((x1, y1, x2, y1), fill=(0, rng.randint(70, 145), 65), width=1)
+        if rng.random() > 0.45:
+            draw.ellipse((x2 - 3, y1 - 3, x2 + 3, y1 + 3), outline=(80, 255, 185))
+    title_font = matrix_font(26, True)
+    label_font = matrix_font(12)
+    for offset, color in [(3, (0, 70, 40)), (1, (0, 180, 90)), (0, (150, 255, 210))]:
+        draw.text((24 + offset, 20 + offset), "NEURAL TIMER NODE", fill=color, font=title_font)
+    draw.text((28, 58), "dual interval control  //  audio loop  //  tray daemon online",
+              fill=(95, 255, 185), font=label_font)
+    draw.rectangle((8, 8, width - 9, height - 9), outline=(0, 125, 70), width=1)
+    draw.rectangle((13, 13, width - 14, height - 14), outline=(0, 50, 32), width=1)
+    return ImageTk.PhotoImage(img)
+
+def update_matrix_header(event=None):
+    global matrix_header_photo, matrix_header_size
+    if current_skin != "Matrix":
+        return
+    width = matrix_header_canvas.winfo_width() or matrix_content.winfo_width() or root.winfo_width()
+    height = matrix_header_canvas.winfo_height() or 118
+    if (width, height) == matrix_header_size:
+        return
+    matrix_header_size = (width, height)
+    matrix_header_photo = render_matrix_header(width, height)
+    matrix_header_canvas.delete("all")
+    matrix_header_canvas.create_image(0, 0, image=matrix_header_photo, anchor="nw")
+
+def style_matrix_button(button, active="#1f6d5f"):
+    button.config(bg=ACCENT_COLOR, fg=GLASS_HILITE, activebackground=active,
+                  activeforeground="white", relief="flat", bd=0,
+                  padx=10, pady=5, cursor="hand2",
+                  highlightthickness=1, highlightbackground="#b6fff0",
+                  highlightcolor=MATRIX_CYAN)
+
+def stop_custom_background_animation():
+    global custom_background_after_id, custom_background_gif, custom_background_frame_index
+    if custom_background_after_id:
+        root.after_cancel(custom_background_after_id)
+        custom_background_after_id = None
+    if custom_background_gif:
+        try:
+            custom_background_gif.close()
+        except Exception:
+            pass
+        custom_background_gif = None
+    custom_background_frame_index = 0
+
+def darken_background(img):
+    img = ImageEnhance.Brightness(img).enhance(0.42)
+    return ImageEnhance.Color(img).enhance(0.82)
+
+def render_background_photo(path, width, height):
+    img = Image.open(path).convert("RGB")
+    img = resize_to_fit(img, width, height)
+    return ImageTk.PhotoImage(darken_background(img))
+
+def play_custom_gif_frame():
+    global custom_background_frame_index, custom_background_photo, custom_background_after_id
+    if not custom_background_gif:
+        return
+    try:
+        custom_background_gif.seek(custom_background_frame_index)
+    except EOFError:
+        custom_background_frame_index = 0
+        custom_background_gif.seek(0)
+    width, height = custom_background_size
+    frame = resize_to_fit(custom_background_gif.convert("RGB"), width, height)
+    custom_background_photo = ImageTk.PhotoImage(darken_background(frame))
+    background_label.config(image=custom_background_photo)
+    delay = max(40, int(custom_background_gif.info.get("duration", 100)))
+    custom_background_frame_index += 1
+    custom_background_after_id = root.after(delay, play_custom_gif_frame)
+
+def apply_custom_background():
+    global custom_background_photo, custom_background_gif, custom_background_size
+    if not custom_background_path or not os.path.exists(custom_background_path):
+        stop_custom_background_animation()
+        custom_background_size = (0, 0)
+        background_label.config(image="", bg=BG_COLOR)
+        paint_page_backgrounds()
+        return
+    width = root.winfo_width()
+    height = root.winfo_height()
+    if width < 100 or height < 100:
+        return
+    if custom_background_size == (width, height) and (custom_background_photo or custom_background_gif):
+        return
+    stop_custom_background_animation()
+    custom_background_size = (width, height)
+    try:
+        if custom_background_path.lower().endswith(".gif"):
+            custom_background_gif = Image.open(custom_background_path)
+            play_custom_gif_frame()
+        else:
+            custom_background_photo = render_background_photo(custom_background_path, width, height)
+            background_label.config(image=custom_background_photo)
+        paint_page_backgrounds()
+    except Exception as e:
+        print(f"Custom background failed: {e}")
+        background_label.config(image="", bg=BG_COLOR)
+
+def choose_custom_background():
+    global custom_background_path, custom_background_size
+    path = filedialog.askopenfilename(
+        title="Choose Timer Background",
+        filetypes=[("Images and GIFs", "*.png *.jpg *.jpeg *.bmp *.webp *.gif"), ("All files", "*.*")]
+    )
+    if not path:
+        return
+    custom_background_path = path
+    custom_background_size = (0, 0)
+    save_background_path(path)
+    if current_skin != "Gallery":
+        apply_custom_background()
+
+def clear_custom_background():
+    global custom_background_path, custom_background_size
+    custom_background_path = ""
+    custom_background_size = (0, 0)
+    save_background_path("")
+    stop_custom_background_animation()
+    paint_page_backgrounds()
+    if current_skin != "Gallery":
+        background_label.config(image="", bg=BG_COLOR)
+
+def show_background_menu():
+    menu = tk.Menu(root, tearoff=0, bg=MATRIX_PANEL_BG, fg=FG_COLOR,
+                   activebackground=ACCENT_COLOR, activeforeground=GLASS_HILITE)
+    menu.add_command(label="Choose Image/GIF", command=choose_custom_background)
+    menu.add_command(label="Use Default", command=clear_custom_background)
+    menu.tk_popup(background_button.winfo_rootx(), background_button.winfo_rooty() + background_button.winfo_height())
+
+def paint_page_backgrounds():
+    page_bg = PAGE_GLASS_BG if custom_background_path else BG_COLOR
+    panel_bg = PANEL_GLASS_BG if custom_background_path else MATRIX_PANEL_BG
+    for widget in (matrix_scroll, matrix_content, matrix_header_canvas,
+                   aggregator_frame, agg_top_frame, news_canvas, news_inner_frame,
+                   metals_frame, metals_top_frame, silver_frame, gold_frame,
+                   weather_frame, weather_top_frame, weather_canvas, weather_inner_frame):
+        try:
+            widget.configure(bg=page_bg)
+        except Exception:
+            pass
+    for widget in (top_frame, timer1_frame, timer2_frame, media_frame):
+        try:
+            widget.configure(bg=panel_bg)
+        except Exception:
+            pass
+    for root_widget in (root, aggregator_frame, metals_frame, weather_frame, matrix_content):
+        for widget in root_widget.winfo_children():
+            stack = [widget]
+            while stack:
+                current = stack.pop()
+                stack.extend(current.winfo_children())
+                try:
+                    bg = current.cget("bg")
+                except Exception:
+                    continue
+                try:
+                    if bg in (BG_COLOR, MATRIX_BG):
+                        current.configure(bg=page_bg)
+                    elif bg == MATRIX_PANEL_BG:
+                        current.configure(bg=panel_bg)
+                except Exception:
+                    pass
+
 def set_background_image(path):
     global current_photo
     width = root.winfo_width()
@@ -287,24 +543,12 @@ def bind_weather_keys():
     root.bind("<Escape>", switch_to_matrix)
 def unbind_weather_keys():
     root.unbind("<Escape>")
-def bind_break_keys():
-    root.bind("<Escape>", switch_to_matrix)
-def unbind_break_keys():
-    root.unbind("<Escape>")
-def bind_launches_keys():
-    root.bind("<Escape>", switch_to_matrix)
-def unbind_launches_keys():
-    root.unbind("<Escape>")
-def bind_podcasts_keys():
-    root.bind("<Escape>", switch_to_matrix)
-def unbind_podcasts_keys():
-    root.unbind("<Escape>")
 # Helper to switch skins via hotkey
 def switch_skin(skin_name):
     skin_combo.set(skin_name)
     apply_skin()
 def apply_skin(event=None):
-    global current_skin, backgrounds, gallery_hint, aggregator_hint, metals_hint, weather_hint, break_hint, launches_hint, podcasts_hint
+    global current_skin, backgrounds, gallery_hint, aggregator_hint, metals_hint, weather_hint, custom_background_size
     selected = skin_combo.get()
     if selected == "Gallery":
         backgrounds = load_backgrounds()
@@ -317,6 +561,7 @@ def apply_skin(event=None):
         top_frame.pack_forget()
         matrix_scroll.pack_forget()
         matrix_scrollbar.pack_forget()
+        matrix_header_canvas.pack_forget()
         timer1_frame.pack_forget()
         sep.pack_forget()
         timer2_frame.pack_forget()
@@ -325,9 +570,6 @@ def apply_skin(event=None):
         aggregator_frame.pack_forget()
         metals_frame.pack_forget()
         weather_frame.pack_forget()
-        break_frame.pack_forget()
-        launches_frame.pack_forget()
-        podcasts_frame.pack_forget()
         if gallery_hint:
             gallery_hint.place_forget()
         if aggregator_hint:
@@ -336,22 +578,16 @@ def apply_skin(event=None):
             metals_hint.place_forget()
         if weather_hint:
             weather_hint.place_forget()
-        if break_hint:
-            break_hint.place_forget()
-        if launches_hint:
-            launches_hint.place_forget()
-        if podcasts_hint:
-            podcasts_hint.place_forget()
         unbind_gallery_keys()
         unbind_aggregator_keys()
         unbind_metals_keys()
         unbind_weather_keys()
-        unbind_break_keys()
-        unbind_launches_keys()
-        unbind_podcasts_keys()
         stop_slideshow()
+        stop_custom_background_animation()
+        custom_background_size = (0, 0)
         background_label.config(image='', bg=BG_COLOR)
         if selected == "Matrix":
+            apply_custom_background()
             top_frame.pack(fill="x", pady=5)
             pack_matrix_view()
         elif selected == "Gallery":
@@ -362,6 +598,7 @@ def apply_skin(event=None):
                                         font=("Consolas", 10), fg=FG_COLOR, bg="#111111", padx=10, pady=5, justify="left")
             gallery_hint.place(relx=0.99, rely=0.99, anchor="se")
         elif selected == "Aggregator":
+            apply_custom_background()
             aggregator_frame.pack(fill="both", expand=True)
             bind_aggregator_keys()
             if aggregator_hint is None:
@@ -370,6 +607,7 @@ def apply_skin(event=None):
             aggregator_hint.place(relx=0.99, rely=0.99, anchor="se")
             refresh_news()
         elif selected == "Metals":
+            apply_custom_background()
             metals_frame.pack(fill="both", expand=True)
             bind_metals_keys()
             if metals_hint is None:
@@ -378,6 +616,7 @@ def apply_skin(event=None):
             metals_hint.place(relx=0.99, rely=0.99, anchor="se")
             refresh_prices()
         elif selected == "Weather":
+            apply_custom_background()
             weather_frame.pack(fill="both", expand=True)
             bind_weather_keys()
             if weather_hint is None:
@@ -385,41 +624,16 @@ def apply_skin(event=None):
                                         font=("Consolas", 10), fg=FG_COLOR, bg="#111111", padx=10, pady=5, justify="left")
             weather_hint.place(relx=0.99, rely=0.99, anchor="se")
             refresh_weather()
-        elif selected == "Break Time":
-            break_frame.pack(fill="both", expand=True)
-            bind_break_keys()
-            if break_hint is None:
-                break_hint = tk.Label(root, text="Break Time",
-                                      font=("Consolas", 10), fg=FG_COLOR, bg="#111111", padx=10, pady=5, justify="left")
-            break_hint.place(relx=0.99, rely=0.99, anchor="se")
-        elif selected == "Rocket Launches":
-            launches_frame.pack(fill="both", expand=True)
-            bind_launches_keys()
-            if launches_hint is None:
-                launches_hint = tk.Label(root, text="Rocket Launches Mode",
-                                         font=("Consolas", 10), fg=FG_COLOR, bg="#111111", padx=10, pady=5, justify="left")
-            launches_hint.place(relx=0.99, rely=0.99, anchor="se")
-            refresh_launches()
-        elif selected == "Podcasts":
-            podcasts_frame.pack(fill="both", expand=True)
-            bind_podcasts_keys()
-            if podcasts_hint is None:
-                podcasts_hint = tk.Label(root, text="Podcasts Mode",
-                                         font=("Consolas", 10), fg=FG_COLOR, bg="#111111", padx=10, pady=5, justify="left")
-            podcasts_hint.place(relx=0.99, rely=0.99, anchor="se")
-            refresh_podcasts()
         on_resize(None)
 def on_resize(event=None):
     if current_skin == "Gallery" and backgrounds:
         set_background_image(backgrounds[current_index])
-    elif current_skin == "Aggregator":
+    elif current_skin != "Gallery":
+        apply_custom_background()
+    if current_skin == "Aggregator":
         news_canvas.configure(scrollregion=news_canvas.bbox("all"))
     elif current_skin == "Weather":
         weather_canvas.configure(scrollregion=weather_canvas.bbox("all"))
-    elif current_skin == "Rocket Launches":
-        launches_canvas.configure(scrollregion=launches_canvas.bbox("all"))
-    elif current_skin == "Podcasts":
-        podcasts_canvas.configure(scrollregion=podcasts_canvas.bbox("all"))
 root.bind("<Configure>", on_resize)
 skin_combo.bind("<<ComboboxSelected>>", apply_skin)
 # Aggregator Skin UI
@@ -443,6 +657,15 @@ news_inner_frame.bind("<Configure>", lambda e: news_canvas.configure(scrollregio
 # Reliable mouse wheel scrolling for News
 news_canvas.bind("<Enter>", lambda e: news_canvas.focus_set())
 news_canvas.bind("<MouseWheel>", lambda event: news_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units"))
+NEWS_FEEDS = {
+    "Breitbart": "https://feeds.feedburner.com/breitbart",
+    "Fox News": "https://moxie.foxnews.com/google-publisher/latest.xml",
+    "Washington Examiner": "https://www.washingtonexaminer.com/feed/",
+    "The Daily Wire": "https://www.dailywire.com/feeds/rss.xml",
+    "The Federalist": "https://thefederalist.com/feed/",
+    "National Review": "https://www.nationalreview.com/feed/",
+}
+
 def refresh_news():
     last_updated_label.config(text="Loading...", fg=FG_COLOR)
     for child in news_inner_frame.winfo_children():
@@ -460,30 +683,36 @@ def refresh_news():
                 news_canvas.configure(scrollregion=news_canvas.bbox("all"))
             root.after(0, update_ui)
             return
-        feed = feedparser.parse("https://feeds.feedburner.com/breitbart")
+
         now = datetime.now().strftime("%H:%M:%S")
-        def update_ui():
+        all_entries = []
+        feed_errors = []
+        for source_name, feed_url in NEWS_FEEDS.items():
+            feed = feedparser.parse(feed_url)
             if hasattr(feed, 'bozo_exception') or (hasattr(feed, 'bozo') and feed.bozo):
-                last_updated_label.config(text="Feed error", fg=ALERT_RED)
-                error_msg = str(getattr(feed, 'bozo_exception', 'Unknown error'))
-                error_label = tk.Label(news_inner_frame, text=f"Error loading feed:\n{error_msg}\n\nCheck internet connection.",
-                                       font=TEXT_FONT, fg=ALERT_RED, bg=BG_COLOR, wraplength=800, justify="left")
-                error_label.pack(pady=50, padx=30)
-            elif not feed.entries:
-                last_updated_label.config(text="No items", fg=GRAY_COLOR)
-                no_items_label = tk.Label(news_inner_frame, text="No headlines available.\nTry refreshing later.",
-                                          font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR)
-                no_items_label.pack(pady=50)
-            else:
-                last_updated_label.config(text=f"Last updated: {now}", fg=GRAY_COLOR)
-                for entry in feed.entries[:30]:
+                feed_errors.append(source_name)
+                continue
+            for entry in feed.entries[:10]:
+                published = entry.get('published_parsed') or entry.get('updated_parsed') or (0,)
+                all_entries.append((published, source_name, entry))
+
+        all_entries.sort(key=lambda item: item[0], reverse=True)
+
+        def update_ui():
+            if all_entries:
+                error_note = f" - {len(feed_errors)} feed error(s)" if feed_errors else ""
+                last_updated_label.config(text=f"Last updated: {now}{error_note}", fg=GRAY_COLOR)
+                for _, source_name, entry in all_entries[:40]:
                     item_frame = tk.Frame(news_inner_frame, bg=BG_COLOR)
                     item_frame.pack(fill="x", padx=40, pady=12, anchor="w")
+                    source_label = tk.Label(item_frame, text=source_name.upper(), font=("Consolas", 9, "bold"),
+                                            fg=MATRIX_CYAN, bg=BG_COLOR)
+                    source_label.pack(anchor="center")
                     title_text = entry.get('title', 'Untitled').strip()
                     link = entry.get('link', '').strip()
                     title_label = tk.Label(item_frame, text=title_text, font=HEADING_FONT, fg=FG_COLOR, bg=BG_COLOR,
                                            cursor="hand2" if link else "", justify="left", wraplength=900)
-                    title_label.pack(anchor="w")
+                    title_label.pack(anchor="w", pady=(3, 0))
                     if link:
                         title_label.bind("<Button-1>", lambda e, url=link: webbrowser.open(url))
                         title_label.bind("<Enter>", lambda e: e.widget.config(fg="#00FF88"))
@@ -493,10 +722,16 @@ def refresh_news():
                         sum_label = tk.Label(item_frame, text=summary_text, font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR,
                                              justify="left", wraplength=900)
                         sum_label.pack(anchor="w", pady=(6, 0))
-                    pub = entry.get('published', 'No date')
+                    pub = entry.get('published', entry.get('updated', 'No date'))
                     date_label = tk.Label(item_frame, text=pub, font=("Consolas", 9), fg=GRAY_COLOR, bg=BG_COLOR)
                     date_label.pack(anchor="w", pady=(6, 0))
                     ttk.Separator(item_frame, orient="horizontal").pack(fill="x", pady=15)
+            else:
+                last_updated_label.config(text="Feed error", fg=ALERT_RED)
+                error_label = tk.Label(news_inner_frame,
+                                       text="No headlines loaded.\n\nCheck internet connection or feed URLs.",
+                                       font=TEXT_FONT, fg=ALERT_RED, bg=BG_COLOR, wraplength=800, justify="left")
+                error_label.pack(pady=50, padx=30)
             news_canvas.configure(scrollregion=news_canvas.bbox("all"))
         root.after(0, update_ui)
     threading.Thread(target=fetch_and_display, daemon=True).start()
@@ -504,7 +739,7 @@ def refresh_news():
 metals_frame = tk.Frame(root, bg=BG_COLOR)
 metals_top_frame = tk.Frame(metals_frame, bg=BG_COLOR)
 metals_top_frame.pack(fill="x", pady=20)
-tk.Label(metals_top_frame, text="Live Spot Prices (≈ APMEX)", font=TITLE_FONT, bg=BG_COLOR, fg=FG_COLOR).pack(side="left", padx=30)
+tk.Label(metals_top_frame, text="Live Spot Prices (~ APMEX)", font=TITLE_FONT, bg=BG_COLOR, fg=FG_COLOR).pack(side="left", padx=30)
 metals_refresh_btn = tk.Button(metals_top_frame, text="Refresh", font=BUTTON_FONT, bg=ACCENT_COLOR, fg=FG_COLOR,
                                activebackground="#004400", relief="flat", command=lambda: refresh_prices())
 metals_refresh_btn.pack(side="right", padx=30)
@@ -601,34 +836,36 @@ weather_canvas.configure(yscrollcommand=weather_scrollbar.set)
 weather_scrollbar.pack(side="right", fill="y")
 weather_canvas.pack(side="left", fill="both", expand=True)
 weather_inner_frame = tk.Frame(weather_canvas, bg=BG_COLOR)
-weather_canvas.create_window((0, 0), window=weather_inner_frame, anchor="nw")
+weather_window = weather_canvas.create_window((0, 0), window=weather_inner_frame, anchor="nw")
 weather_inner_frame.bind("<Configure>", lambda e: weather_canvas.configure(scrollregion=weather_canvas.bbox("all")))
+weather_canvas.bind("<Configure>", lambda e: weather_canvas.itemconfigure(weather_window, width=e.width))
 # Reliable mouse wheel scrolling for Weather
 weather_canvas.bind("<Enter>", lambda e: weather_canvas.focus_set())
 weather_canvas.bind("<MouseWheel>", lambda event: weather_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units"))
 WEATHER_CODES = {
-    0: "Clear sky ☀️",
-    1: "Mainly clear 🌤️",
-    2: "Partly cloudy ⛅",
-    3: "Overcast ☁️",
-    45: "Fog 🌫️",
-    48: "Rime fog 🌫️",
-    51: "Light drizzle 🌦️",
-    53: "Drizzle 🌦️",
-    55: "Heavy drizzle 🌦️",
-    61: "Light rain 🌧️",
-    63: "Rain 🌧️",
-    65: "Heavy rain 🌧️",
-    71: "Light snow ❄️",
-    73: "Snow ❄️",
-    75: "Heavy snow ❄️",
-    80: "Light showers 🌦️",
-    81: "Showers 🌦️",
-    82: "Heavy showers 🌦️",
-    95: "Thunderstorm ⛈️",
-    96: "Thunderstorm w/ hail ⛈️",
-    99: "Heavy thunderstorm w/ hail ⛈️",
+    0: "Clear sky",
+    1: "Mainly clear",
+    2: "Partly cloudy",
+    3: "Overcast",
+    45: "Fog",
+    48: "Rime fog",
+    51: "Light drizzle",
+    53: "Drizzle",
+    55: "Heavy drizzle",
+    61: "Light rain",
+    63: "Rain",
+    65: "Heavy rain",
+    71: "Light snow",
+    73: "Snow",
+    75: "Heavy snow",
+    80: "Light showers",
+    81: "Showers",
+    82: "Heavy showers",
+    95: "Thunderstorm",
+    96: "Thunderstorm with hail",
+    99: "Heavy thunderstorm with hail",
 }
+DEGREE_F = chr(176) + "F"
 def get_weather_desc(code):
     return WEATHER_CODES.get(code, f"Unknown ({code})")
 def refresh_weather():
@@ -673,27 +910,27 @@ def refresh_weather():
                 weather_updated_label.config(text=f"Last updated: {now}", fg=GRAY_COLOR)
                 curr_temp = current["temperature_2m"]
                 curr_desc = get_weather_desc(current["weather_code"])
-                temp_label = tk.Label(weather_inner_frame, text=f"{curr_temp:.0f}°F", font=LARGE_PRICE_FONT, fg=FG_COLOR, bg=BG_COLOR)
+                temp_label = tk.Label(weather_inner_frame, text=f"{curr_temp:.0f}{DEGREE_F}", font=LARGE_PRICE_FONT, fg=FG_COLOR, bg=BG_COLOR)
                 temp_label.pack(pady=20)
                 desc_label = tk.Label(weather_inner_frame, text=curr_desc, font=HEADING_FONT, fg=FG_COLOR, bg=BG_COLOR)
                 desc_label.pack(pady=10)
                 details_frame = tk.Frame(weather_inner_frame, bg=BG_COLOR)
-                details_frame.pack(pady=20)
-                tk.Label(details_frame, text=f"Feels like: {current['apparent_temperature']:.0f}°F", font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR).pack(anchor="w")
-                tk.Label(details_frame, text=f"Humidity: {current['relative_humidity_2m']}%", font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR).pack(anchor="w")
-                tk.Label(details_frame, text=f"Wind: {current['wind_speed_10m']:.0f} mph", font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR).pack(anchor="w")
-                tk.Label(details_frame, text=f"Precip (recent): {current['precipitation']:.2f}\"", font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR).pack(anchor="w")
+                details_frame.pack(pady=20, anchor="center")
+                tk.Label(details_frame, text=f"Feels like: {current['apparent_temperature']:.0f}{DEGREE_F}", font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR).pack(anchor="center")
+                tk.Label(details_frame, text=f"Humidity: {current['relative_humidity_2m']}%", font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR).pack(anchor="center")
+                tk.Label(details_frame, text=f"Wind: {current['wind_speed_10m']:.0f} mph", font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR).pack(anchor="center")
+                tk.Label(details_frame, text=f"Precip (recent): {current['precipitation']:.2f}\"", font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR).pack(anchor="center")
                 ttk.Separator(weather_inner_frame, orient="horizontal").pack(fill="x", pady=30, padx=50)
-                tk.Label(weather_inner_frame, text="Next 12 Hours", font=HEADING_FONT, fg=FG_COLOR, bg=BG_COLOR).pack(anchor="w", padx=50)
+                tk.Label(weather_inner_frame, text="Next 12 Hours", font=HEADING_FONT, fg=FG_COLOR, bg=BG_COLOR).pack(anchor="center")
                 for i in range(min(12, len(hourly["time"]))):
                     t = datetime.fromisoformat(hourly["time"][i])
                     hour_str = t.strftime("%-I %p")
                     temp = hourly["temperature_2m"][i]
                     desc = get_weather_desc(hourly["weather_code"][i])
-                    hour_label = tk.Label(weather_inner_frame, text=f"{hour_str}: {temp:.0f}°F {desc}", font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR)
-                    hour_label.pack(anchor="w", padx=70, pady=4)
+                    hour_label = tk.Label(weather_inner_frame, text=f"{hour_str}: {temp:.0f}{DEGREE_F} {desc}", font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR)
+                    hour_label.pack(anchor="center", pady=4)
                 ttk.Separator(weather_inner_frame, orient="horizontal").pack(fill="x", pady=30, padx=50)
-                tk.Label(weather_inner_frame, text="7-Day Forecast", font=HEADING_FONT, fg=FG_COLOR, bg=BG_COLOR).pack(anchor="w", padx=50)
+                tk.Label(weather_inner_frame, text="7-Day Forecast", font=HEADING_FONT, fg=FG_COLOR, bg=BG_COLOR).pack(anchor="center")
                 for i in range(len(daily["time"])):
                     t = datetime.fromisoformat(daily["time"][i])
                     day_str = t.strftime("%A %b %d")
@@ -701,9 +938,9 @@ def refresh_weather():
                     low = daily["temperature_2m_min"][i]
                     precip = daily["precipitation_sum"][i]
                     desc = get_weather_desc(daily["weather_code"][i])
-                    day_label = tk.Label(weather_inner_frame, text=f"{day_str}: High {high:.0f}° Low {low:.0f}° Precip {precip:.2f}\" {desc}",
+                    day_label = tk.Label(weather_inner_frame, text=f"{day_str}: High {high:.0f}{DEGREE_F} Low {low:.0f}{DEGREE_F} Precip {precip:.2f}\" {desc}",
                                          font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR)
-                    day_label.pack(anchor="w", padx=70, pady=6)
+                    day_label.pack(anchor="center", pady=6)
                 weather_canvas.configure(scrollregion=weather_canvas.bbox("all"))
             root.after(0, update_ui)
         except Exception as e:
@@ -714,217 +951,6 @@ def refresh_weather():
                 error_label.pack(pady=100, padx=50)
                 weather_canvas.configure(scrollregion=weather_canvas.bbox("all"))
             root.after(0, update_ui)
-    threading.Thread(target=fetch_and_display, daemon=True).start()
-# Break Time Skin UI - with YouTube and X
-break_frame = tk.Frame(root, bg=BG_COLOR)
-break_center = tk.Frame(break_frame, bg=BG_COLOR)
-break_center.pack(expand=True)
-tk.Label(break_center, text="Break Time - Quick Links", font=TITLE_FONT, bg=BG_COLOR, fg=FG_COLOR).pack(pady=30)
-grok_button = tk.Button(break_center, text="Grok Imagine", font=BIG_BUTTON_FONT, width=20, height=2,
-                        bg=ACCENT_COLOR, fg=FG_COLOR, activebackground="#004400", relief="flat",
-                        command=lambda: webbrowser.open("https://grok.com/imagine"))
-grok_button.pack(pady=10)
-chatgpt_button = tk.Button(break_center, text="ChatGPT Images", font=BIG_BUTTON_FONT, width=20, height=2,
-                           bg=ACCENT_COLOR, fg=FG_COLOR, activebackground="#004400", relief="flat",
-                           command=lambda: webbrowser.open("https://chatgpt.com/images"))
-chatgpt_button.pack(pady=10)
-youtube_button = tk.Button(break_center, text="YouTube", font=BIG_BUTTON_FONT, width=20, height=2,
-                           bg=ACCENT_COLOR, fg=FG_COLOR, activebackground="#004400", relief="flat",
-                           command=lambda: webbrowser.open("https://www.youtube.com"))
-youtube_button.pack(pady=10)
-x_button = tk.Button(break_center, text="X", font=BIG_BUTTON_FONT, width=20, height=2,
-                     bg=ACCENT_COLOR, fg=FG_COLOR, activebackground="#004400", relief="flat",
-                     command=lambda: webbrowser.open("https://x.com"))
-x_button.pack(pady=10)
-tk.Label(break_center, text="Opens in your default browser • Chill, create, or scroll", font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR).pack(pady=30)
-# Rocket Launches Skin UI
-launches_frame = tk.Frame(root, bg=BG_COLOR)
-launches_top_frame = tk.Frame(launches_frame, bg=BG_COLOR)
-launches_top_frame.pack(fill="x", pady=10)
-tk.Label(launches_top_frame, text="Upcoming Rocket Launches", font=TITLE_FONT, bg=BG_COLOR, fg=FG_COLOR).pack(side="left", padx=30)
-launches_refresh_btn = tk.Button(launches_top_frame, text="Refresh", font=BUTTON_FONT, bg=ACCENT_COLOR, fg=FG_COLOR,
-                                 activebackground="#004400", relief="flat", command=lambda: refresh_launches())
-launches_refresh_btn.pack(side="right", padx=30)
-more_launches_btn = tk.Button(launches_top_frame, text="More Details", font=BUTTON_FONT, bg=ACCENT_COLOR, fg=FG_COLOR,
-                              activebackground="#004400", relief="flat",
-                              command=lambda: webbrowser.open("https://www.spacex.com/launches"))
-more_launches_btn.pack(side="right", padx=10)
-launches_updated_label = tk.Label(launches_top_frame, text="Last updated: Never", font=TEXT_FONT, bg=BG_COLOR, fg=GRAY_COLOR)
-launches_updated_label.pack(side="right", padx=(0, 20))
-launches_canvas = tk.Canvas(launches_frame, bg=BG_COLOR, highlightthickness=0)
-launches_scrollbar = ttk.Scrollbar(launches_frame, orient="vertical", command=launches_canvas.yview)
-launches_canvas.configure(yscrollcommand=launches_scrollbar.set)
-launches_scrollbar.pack(side="right", fill="y")
-launches_canvas.pack(side="left", fill="both", expand=True)
-launches_inner_frame = tk.Frame(launches_canvas, bg=BG_COLOR)
-launches_canvas.create_window((0, 0), window=launches_inner_frame, anchor="nw")
-launches_inner_frame.bind("<Configure>", lambda e: launches_canvas.configure(scrollregion=launches_canvas.bbox("all")))
-# Reliable mouse wheel scrolling for Launches
-launches_canvas.bind("<Enter>", lambda e: launches_canvas.focus_set())
-launches_canvas.bind("<MouseWheel>", lambda event: launches_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units"))
-def refresh_launches():
-    launches_updated_label.config(text="Loading...", fg=FG_COLOR)
-    for child in launches_inner_frame.winfo_children():
-        child.destroy()
-    def fetch_and_display():
-        now = datetime.now().strftime("%H:%M:%S")
-        try:
-            url = "https://ll.thespacedevs.com/2.2.0/launch/upcoming/"
-            params = {"limit": 20}
-            response = requests.get(url, params=params, timeout=15)
-            response.raise_for_status()
-            data = response.json()
-            launches = data.get("results", [])
-            def update_ui():
-                launches_updated_label.config(text=f"Last updated: {now}", fg=GRAY_COLOR)
-                if not launches:
-                    no_launches_label = tk.Label(launches_inner_frame, text="No upcoming launches found.\nTry refreshing later.",
-                                                 font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR)
-                    no_launches_label.pack(pady=50)
-                else:
-                    for launch in launches:
-                        item_frame = tk.Frame(launches_inner_frame, bg=BG_COLOR)
-                        item_frame.pack(fill="x", padx=40, pady=16, anchor="w")
-                        name = launch.get("name", "Unknown Mission")
-                        title_label = tk.Label(item_frame, text=name, font=HEADING_FONT, fg=FG_COLOR, bg=BG_COLOR, justify="left")
-                        title_label.pack(anchor="w")
-                        net = launch.get("net")
-                        if net:
-                            net_dt = datetime.fromisoformat(net.replace("Z", "+00:00"))
-                            local_dt = net_dt.astimezone()
-                            time_str = local_dt.strftime("%a, %b %d, %Y %I:%M %p %Z")
-                            time_label = tk.Label(item_frame, text=f"Scheduled: {time_str}", font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR)
-                            time_label.pack(anchor="w")
-                            now_utc = datetime.now(timezone.utc)
-                            delta = net_dt - now_utc
-                            if delta.total_seconds() > 0:
-                                days = delta.days
-                                hours, rem = divmod(delta.seconds, 3600)
-                                minutes = rem // 60
-                                countdown_str = f"T-{days}d {hours:02}h {minutes:02}m"
-                                countdown_color = POSITIVE_GREEN if days > 7 else ALERT_ORANGE if days > 1 else ALERT_RED
-                                countdown_label = tk.Label(item_frame, text=countdown_str, font=MEDIUM_PRICE_FONT, fg=countdown_color, bg=BG_COLOR)
-                                countdown_label.pack(anchor="w", pady=(4, 0))
-                            else:
-                                past_label = tk.Label(item_frame, text="Launch window passed or ongoing", font=TEXT_FONT, fg=ALERT_ORANGE, bg=BG_COLOR)
-                                past_label.pack(anchor="w")
-                        rocket = launch["rocket"]["configuration"].get("full_name", "Unknown Rocket")
-                        location = launch["pad"]["location"].get("name", "Unknown Location")
-                        status = launch["status"].get("abbrev", "TBD")
-                        info_str = f"{rocket} • {location} • Status: {status}"
-                        info_label = tk.Label(item_frame, text=info_str, font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR)
-                        info_label.pack(anchor="w", pady=(4, 0))
-                        mission = launch.get("mission")
-                        if mission and mission.get("description"):
-                            desc = mission["description"]
-                            desc_label = tk.Label(item_frame, text=desc, font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR, wraplength=900, justify="left")
-                            desc_label.pack(anchor="w", pady=(8, 0))
-                        vid_url = None
-                        if launch.get("vid_urls") and launch["vid_urls"]:
-                            vid_url = launch["vid_urls"][0].get("url")
-                        if vid_url:
-                            live_label = tk.Label(item_frame, text="Watch Livestream →", font=BUTTON_FONT, fg="#00FF88", bg=BG_COLOR, cursor="hand2")
-                            live_label.pack(anchor="w", pady=8)
-                            live_label.bind("<Button-1>", lambda e, u=vid_url: webbrowser.open(u))
-                            live_label.bind("<Enter>", lambda e: e.widget.config(fg=POSITIVE_GREEN))
-                            live_label.bind("<Leave>", lambda e: e.widget.config(fg="#00FF88"))
-                        ttk.Separator(item_frame, orient="horizontal").pack(fill="x", pady=20)
-                launches_canvas.configure(scrollregion=launches_canvas.bbox("all"))
-            root.after(0, update_ui)
-        except Exception as e:
-            def update_ui():
-                launches_updated_label.config(text="Error", fg=ALERT_RED)
-                error_label = tk.Label(launches_inner_frame, text=f"Failed to load launches:\n{str(e)}\n\nCheck internet and refresh.",
-                                       font=TEXT_FONT, fg=ALERT_RED, bg=BG_COLOR, justify="left", wraplength=800)
-                error_label.pack(pady=100, padx=50)
-                launches_canvas.configure(scrollregion=launches_canvas.bbox("all"))
-            root.after(0, update_ui)
-    threading.Thread(target=fetch_and_display, daemon=True).start()
-# Podcasts Skin UI
-podcasts_frame = tk.Frame(root, bg=BG_COLOR)
-podcasts_top_frame = tk.Frame(podcasts_frame, bg=BG_COLOR)
-podcasts_top_frame.pack(fill="x", pady=10)
-tk.Label(podcasts_top_frame, text="Favorite Podcasts", font=TITLE_FONT, bg=BG_COLOR, fg=FG_COLOR).pack(side="left", padx=30)
-podcasts_refresh_btn = tk.Button(podcasts_top_frame, text="Refresh", font=BUTTON_FONT, bg=ACCENT_COLOR, fg=FG_COLOR,
-                                 activebackground="#004400", relief="flat", command=lambda: refresh_podcasts())
-podcasts_refresh_btn.pack(side="right", padx=30)
-podcasts_updated_label = tk.Label(podcasts_top_frame, text="Last updated: Never", font=TEXT_FONT, bg=BG_COLOR, fg=GRAY_COLOR)
-podcasts_updated_label.pack(side="right", padx=(0, 20))
-podcasts_canvas = tk.Canvas(podcasts_frame, bg=BG_COLOR, highlightthickness=0)
-podcasts_scrollbar = ttk.Scrollbar(podcasts_frame, orient="vertical", command=podcasts_canvas.yview)
-podcasts_canvas.configure(yscrollcommand=podcasts_scrollbar.set)
-podcasts_scrollbar.pack(side="right", fill="y")
-podcasts_canvas.pack(side="left", fill="both", expand=True)
-podcasts_inner_frame = tk.Frame(podcasts_canvas, bg=BG_COLOR)
-podcasts_canvas.create_window((0, 0), window=podcasts_inner_frame, anchor="nw")
-podcasts_inner_frame.bind("<Configure>", lambda e: podcasts_canvas.configure(scrollregion=podcasts_canvas.bbox("all")))
-# Reliable mouse wheel scrolling for Podcasts
-podcasts_canvas.bind("<Enter>", lambda e: podcasts_canvas.focus_set())
-podcasts_canvas.bind("<MouseWheel>", lambda event: podcasts_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units"))
-PODCAST_FEEDS = {
-    "The Joe Rogan Experience": "https://feeds.megaphone.fm/GLT1412515089",
-    "MrBallen Podcast": "https://feeds.simplecast.com/dloY8UYJ"
-}
-def refresh_podcasts():
-    podcasts_updated_label.config(text="Loading...", fg=FG_COLOR)
-    for child in podcasts_inner_frame.winfo_children():
-        child.destroy()
-    def fetch_and_display():
-        now = datetime.now().strftime("%H:%M:%S")
-        all_episodes = []
-        try:
-            import feedparser
-        except ImportError:
-            def update_ui():
-                podcasts_updated_label.config(text="Library missing", fg=ALERT_RED)
-                error_label = tk.Label(podcasts_inner_frame, text="feedparser not installed (pip install feedparser)", font=TEXT_FONT, fg=ALERT_RED, bg=BG_COLOR)
-                error_label.pack(pady=100)
-                podcasts_canvas.configure(scrollregion=podcasts_canvas.bbox("all"))
-            root.after(0, update_ui)
-            return
-        for show_name, feed_url in PODCAST_FEEDS.items():
-            feed = feedparser.parse(feed_url)
-            if hasattr(feed, 'bozo_exception') or (hasattr(feed, 'bozo') and feed.bozo):
-                continue # Skip bad feeds silently
-            for entry in feed.entries[:10]:
-                all_episodes.append((show_name, entry))
-        # Sort all episodes by publish date (newest first)
-        all_episodes.sort(key=lambda x: x[1].get('published_parsed', (0,)), reverse=True)
-        def update_ui():
-            podcasts_updated_label.config(text=f"Last updated: {now}", fg=GRAY_COLOR)
-            if not all_episodes:
-                no_ep_label = tk.Label(podcasts_inner_frame, text="No episodes loaded – check connection/feeds.", font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR)
-                no_ep_label.pack(pady=50)
-            else:
-                current_show = None
-                for show_name, entry in all_episodes:
-                    if show_name != current_show:
-                        current_show = show_name
-                        show_label = tk.Label(podcasts_inner_frame, text=show_name, font=("Consolas", 14, "bold"), fg=POSITIVE_GREEN, bg=BG_COLOR)
-                        show_label.pack(anchor="w", padx=40, pady=(20, 8))
-                        ttk.Separator(podcasts_inner_frame, orient="horizontal").pack(fill="x", padx=40, pady=(0, 10))
-                    item_frame = tk.Frame(podcasts_inner_frame, bg=BG_COLOR)
-                    item_frame.pack(fill="x", padx=50, pady=8, anchor="w")
-                    title = entry.get('title', 'No title')
-                    link = entry.get('link', '')
-                    title_label = tk.Label(item_frame, text=title, font=HEADING_FONT, fg=FG_COLOR, bg=BG_COLOR,
-                                           cursor="hand2" if link else "", justify="left", wraplength=850)
-                    title_label.pack(anchor="w")
-                    if link:
-                        title_label.bind("<Button-1>", lambda e, url=link: webbrowser.open(url))
-                        title_label.bind("<Enter>", lambda e: e.widget.config(fg=POSITIVE_GREEN))
-                        title_label.bind("<Leave>", lambda e: e.widget.config(fg=FG_COLOR))
-                    pub = entry.get('published', 'No date')
-                    date_label = tk.Label(item_frame, text=pub, font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR)
-                    date_label.pack(anchor="w", pady=(2, 0))
-                    summary = entry.get('summary', '').strip()
-                    if summary:
-                        sum_label = tk.Label(item_frame, text=summary[:300] + ("..." if len(summary) > 300 else ""),
-                                             font=TEXT_FONT, fg=GRAY_COLOR, bg=BG_COLOR, wraplength=850, justify="left")
-                        sum_label.pack(anchor="w", pady=(6, 0))
-                    ttk.Separator(item_frame, orient="horizontal").pack(fill="x", pady=12)
-            podcasts_canvas.configure(scrollregion=podcasts_canvas.bbox("all"))
-        root.after(0, update_ui)
     threading.Thread(target=fetch_and_display, daemon=True).start()
 def hide_to_tray():
     global current_icon
@@ -956,42 +982,53 @@ def on_quit(icon=None, item=None):
 root.protocol("WM_DELETE_WINDOW", hide_to_tray)
 class BeepTimer:
     def __init__(self, parent, label_text, default_min=25):
-        self.frame = tk.Frame(parent, bg=BG_COLOR)
-        heading_label = tk.Label(self.frame, text=label_text, font=HEADING_FONT, bg=BG_COLOR, fg=FG_COLOR)
-        heading_label.pack(anchor="w", pady=(0, 4))
-        controls = tk.Frame(self.frame, bg=BG_COLOR)
-        controls.pack(fill="x", pady=2)
+        self.frame = tk.Frame(parent, bg=MATRIX_PANEL_BG, highlightthickness=1,
+                              highlightbackground=MATRIX_PANEL_BORDER,
+                              highlightcolor=MATRIX_CYAN, padx=20, pady=14)
+        heading_row = tk.Frame(self.frame, bg=MATRIX_PANEL_BG)
+        heading_row.pack(fill="x", pady=(0, 6))
+        tk.Label(heading_row, text="|", font=HEADING_FONT, bg=MATRIX_PANEL_BG, fg=MATRIX_CYAN).pack(side="left")
+        heading_label = tk.Label(heading_row, text=label_text.upper(), font=HEADING_FONT, bg=MATRIX_PANEL_BG, fg=MATRIX_GLOW)
+        heading_label.pack(side="left", padx=(6, 10))
+        tk.Label(heading_row, text="signal stable", font=("Consolas", 9), bg=MATRIX_PANEL_BG, fg=MATRIX_DIM_GREEN).pack(side="right")
+        controls = tk.Frame(self.frame, bg=MATRIX_PANEL_BG)
+        controls.pack(fill="x", pady=(0, 6))
         controls.columnconfigure(1, weight=1)
-        sound_label = tk.Label(controls, text="Sound:", width=14, anchor="e", bg=BG_COLOR, fg=FG_COLOR, font=TEXT_FONT)
+        sound_label = tk.Label(controls, text="Sound:", width=14, anchor="e", bg=MATRIX_PANEL_BG, fg=MATRIX_CYAN, font=TEXT_FONT)
         sound_label.grid(row=0, column=0, sticky="e")
         self.sound_combo = ttk.Combobox(controls, values=display_names, state="readonly", width=26, font=TEXT_FONT)
         self.sound_combo.grid(row=0, column=1, padx=(8, 12), sticky="ew")
         self.sound_combo.set(display_names[0])
-        interval_label = tk.Label(controls, text="Interval (min):", width=15, anchor="e", bg=BG_COLOR, fg=FG_COLOR, font=TEXT_FONT)
+        interval_label = tk.Label(controls, text="Interval (min):", width=15, anchor="e", bg=MATRIX_PANEL_BG, fg=MATRIX_CYAN, font=TEXT_FONT)
         interval_label.grid(row=1, column=0, sticky="e")
         self.interval_spin = tk.Spinbox(controls, from_=1, to=60, width=10, font=TEXT_FONT,
-                                       bg=BG_COLOR, fg=FG_COLOR, buttonbackground=ACCENT_COLOR,
-                                       insertbackground=FG_COLOR, selectbackground=ACCENT_COLOR,
-                                       relief="flat")
+                                       bg="#102924", fg=MATRIX_GLOW, buttonbackground=ACCENT_COLOR,
+                                       insertbackground=MATRIX_GLOW, selectbackground="#1f6d5f",
+                                       relief="flat", highlightthickness=1,
+                                       highlightbackground=MATRIX_PANEL_BORDER)
         self.interval_spin.grid(row=1, column=1, padx=(8, 12), sticky="w")
         self.interval_spin.delete(0, "end")
         self.interval_spin.insert(0, default_min)
         self.play_button = tk.Button(controls, text="Play", command=self.test_beep, width=10,
                                      font=BUTTON_FONT, bg=ACCENT_COLOR, fg=FG_COLOR,
                                      activebackground="#004400", relief="flat")
-        self.play_button.grid(row=0, column=2, rowspan=2, padx=(8, 0), pady=2, sticky="e")
-        self.status_label = tk.Label(self.frame, text="Not running", font=TEXT_FONT, bg=BG_COLOR, fg=GRAY_COLOR)
-        self.status_label.pack(anchor="w", pady=2)
-        self.elapsed_label = tk.Label(self.frame, text="", font=HEADING_FONT, bg=BG_COLOR, fg=FG_COLOR)
-        self.elapsed_label.pack(anchor="w", pady=2)
-        self.remaining_label = tk.Label(self.frame, text="", font=("Consolas", 12, "bold"), bg=BG_COLOR, fg=FG_COLOR)
-        self.remaining_label.pack(anchor="w", pady=4)
-        self.beeps_label = tk.Label(self.frame, text="", font=TEXT_FONT, bg=BG_COLOR, fg=FG_COLOR)
-        self.beeps_label.pack(anchor="w", pady=2)
-        self.start_button = tk.Button(self.frame, text="Start Timer", command=self.toggle_timer, width=20,
+        style_matrix_button(self.play_button)
+        self.play_button.grid(row=0, column=2, padx=(8, 8), pady=2, sticky="e")
+        self.start_button = tk.Button(controls, text="Start Timer", command=self.toggle_timer, width=14,
                                       font=BUTTON_FONT, bg=ACCENT_COLOR, fg=FG_COLOR,
                                       activebackground="#004400", relief="raised")
-        self.start_button.pack(pady=8)
+        style_matrix_button(self.start_button)
+        self.start_button.grid(row=1, column=2, padx=(8, 8), pady=2, sticky="e")
+        status_row = tk.Frame(self.frame, bg=MATRIX_PANEL_BG)
+        status_row.pack(fill="x")
+        self.status_label = tk.Label(status_row, text="Not running", font=TEXT_FONT, bg=MATRIX_PANEL_BG, fg=GRAY_COLOR)
+        self.status_label.pack(side="left", padx=(0, 24))
+        self.elapsed_label = tk.Label(status_row, text="", font=HEADING_FONT, bg=MATRIX_PANEL_BG, fg=MATRIX_GLOW)
+        self.elapsed_label.pack(side="left", padx=(0, 24))
+        self.remaining_label = tk.Label(status_row, text="", font=("Consolas", 12, "bold"), bg=MATRIX_PANEL_BG, fg=MATRIX_GLOW)
+        self.remaining_label.pack(side="left", padx=(0, 24))
+        self.beeps_label = tk.Label(status_row, text="", font=TEXT_FONT, bg=MATRIX_PANEL_BG, fg=MATRIX_CYAN)
+        self.beeps_label.pack(side="left")
         self.running = False
         self.after_id = None
         self.countdown_id = None
@@ -1055,7 +1092,7 @@ class BeepTimer:
             self.sound_combo.config(state="readonly")
             self.interval_spin.config(state="normal")
             self.status_label.config(text="Stopped", fg=GRAY_COLOR)
-            self.start_button.config(text="Start Timer", bg=ACCENT_COLOR, fg=FG_COLOR)
+            self.start_button.config(text="Start Timer", bg="#123d35", fg=MATRIX_GLOW)
         else:
             mins = int(self.interval_spin.get())
             if mins < 1 or mins > 60:
@@ -1064,7 +1101,7 @@ class BeepTimer:
             interval_sec = mins * 60
             self.start_time_unix = time.time()
             self.next_beep_time = self.start_time_unix + interval_sec
-            self.status_label.config(text=f"Running – {mins} min interval", fg=FG_COLOR)
+            self.status_label.config(text=f"Running - {mins} min interval", fg=FG_COLOR)
             self.beeps_label.config(text="Beeps delivered: 0")
             self.beep_count = 0
             self.elapsed_label.config(text="Elapsed: 0s")
@@ -1074,26 +1111,30 @@ class BeepTimer:
             root.after(200, self.update_countdown)
             self.after_id = root.after(interval_sec * 1000, self.do_beep)
             self.running = True
-            self.start_button.config(text="Stop Timer", bg=ALERT_RED, fg="white")
+            self.start_button.config(text="Stop Timer", bg="#8b1111", fg="white")
+matrix_header_canvas = tk.Canvas(matrix_content, height=104, bg=MATRIX_BG, highlightthickness=0, bd=0)
+matrix_header_canvas.bind("<Configure>", update_matrix_header)
 timer1 = BeepTimer(matrix_content, "Timer 1 (Short)", default_min=5)
 timer1_frame = timer1.frame
 sep = ttk.Separator(matrix_content, orient="horizontal")
 timer2 = BeepTimer(matrix_content, "Timer 2 (Long)", default_min=30)
 timer2_frame = timer2.frame
 # Media Player section
-media_frame = tk.Frame(matrix_content, bg=BG_COLOR)
-tk.Label(media_frame, text="Media Player (Chill Mode)", font=HEADING_FONT, bg=BG_COLOR, fg=FG_COLOR).pack(anchor="w", pady=(0, 8))
-media_controls = tk.Frame(media_frame, bg=BG_COLOR)
+media_frame = tk.Frame(matrix_content, bg=MATRIX_PANEL_BG, highlightthickness=1,
+                       highlightbackground=MATRIX_PANEL_BORDER, highlightcolor=MATRIX_CYAN,
+                       padx=20, pady=16)
+tk.Label(media_frame, text="MEDIA PLAYER (CHILL MODE)", font=HEADING_FONT, bg=MATRIX_PANEL_BG, fg=MATRIX_GLOW).pack(anchor="w", pady=(0, 8))
+media_controls = tk.Frame(media_frame, bg=MATRIX_PANEL_BG)
 media_controls.pack(fill="x", pady=5)
 media_controls.columnconfigure(1, weight=1)
-tk.Label(media_controls, text="Track:", width=14, anchor="e", bg=BG_COLOR, fg=FG_COLOR, font=TEXT_FONT).grid(row=0, column=0, sticky="e")
+tk.Label(media_controls, text="Track:", width=14, anchor="e", bg=MATRIX_PANEL_BG, fg=MATRIX_CYAN, font=TEXT_FONT).grid(row=0, column=0, sticky="e")
 if not media_available:
     media_display_names = ["No media files - add to 'media' folder"]
 media_combo = ttk.Combobox(media_controls, values=media_display_names, state="readonly", width=28, font=TEXT_FONT)
 media_combo.grid(row=0, column=1, padx=(8, 10), sticky="ew")
 shuffle_var = tk.BooleanVar(value=False)
-shuffle_check = tk.Checkbutton(media_controls, text="Shuffle", variable=shuffle_var, bg=BG_COLOR, fg=FG_COLOR, selectcolor=ACCENT_COLOR,
-                               activebackground=BG_COLOR, activeforeground=FG_COLOR)
+shuffle_check = tk.Checkbutton(media_controls, text="Shuffle", variable=shuffle_var, bg=MATRIX_PANEL_BG, fg=MATRIX_GLOW, selectcolor="#020806",
+                               activebackground=MATRIX_PANEL_BG, activeforeground=MATRIX_CYAN)
 shuffle_check.grid(row=0, column=2, padx=10)
 monitor_id = None
 continuous_active = False
@@ -1220,27 +1261,32 @@ def monitor_playback():
 play_media_btn = tk.Button(media_controls, text="Play", width=10, font=BUTTON_FONT, bg=ACCENT_COLOR, fg=FG_COLOR,
                            activebackground="#004400", relief="flat",
                            command=play_media)
+style_matrix_button(play_media_btn)
 play_media_btn.grid(row=0, column=3, padx=5)
 stop_media_btn = tk.Button(media_controls, text="Stop", width=10, font=BUTTON_FONT, bg=ALERT_RED, fg="white",
                            activebackground="#880000", relief="flat",
                            command=stop_media)
+stop_media_btn.config(bg="#8b1111", activebackground="#b81414", relief="flat", bd=0,
+                      highlightthickness=1, highlightbackground="#ff4646")
 stop_media_btn.grid(row=0, column=4, padx=5)
 next_media_btn = tk.Button(media_controls, text="Next", width=10, font=BUTTON_FONT, bg=ACCENT_COLOR, fg=FG_COLOR,
                            activebackground="#004400", relief="flat",
                            command=play_next)
+style_matrix_button(next_media_btn)
 next_media_btn.grid(row=0, column=5, padx=5)
-volume_frame = tk.Frame(media_frame, bg=BG_COLOR)
+volume_frame = tk.Frame(media_frame, bg=MATRIX_PANEL_BG)
 volume_frame.pack(fill="x", pady=8)
-tk.Label(volume_frame, text="Media Volume:", bg=BG_COLOR, fg=FG_COLOR, font=TEXT_FONT).pack(side="left", padx=(20, 10))
+tk.Label(volume_frame, text="Media Volume:", bg=MATRIX_PANEL_BG, fg=MATRIX_CYAN, font=TEXT_FONT).pack(side="left", padx=(20, 10))
 volume_var = tk.IntVar(value=70)
 def set_media_volume(val):
     if media_channel:
         media_channel.set_volume(int(val) / 100.0)
 volume_slider = tk.Scale(volume_frame, from_=0, to=100, orient="horizontal", variable=volume_var,
-                         command=set_media_volume, bg=BG_COLOR, fg=FG_COLOR, highlightbackground=BG_COLOR,
-                         troughcolor="#003300", activebackground="#004400")
+                         command=set_media_volume, bg=MATRIX_PANEL_BG, fg=MATRIX_GLOW,
+                         highlightbackground=MATRIX_PANEL_BG, troughcolor="#102924",
+                         activebackground="#1f6d5f")
 volume_slider.pack(side="left", fill="x", expand=True, padx=(0, 20))
-current_media_label = tk.Label(media_frame, text="Not playing", font=TEXT_FONT, bg=BG_COLOR, fg=GRAY_COLOR)
+current_media_label = tk.Label(media_frame, text="Not playing", font=TEXT_FONT, bg=MATRIX_PANEL_BG, fg=GRAY_COLOR)
 current_media_label.pack(anchor="w", pady=4)
 if media_available:
     media_combo.set(media_display_names[0])
@@ -1248,20 +1294,23 @@ else:
     media_combo.config(state="disabled")
     if media_display_names:
         media_combo.set(media_display_names[0])
-volume_label = tk.Label(matrix_content, text="(Timer beeps use system volume • Media has independent control)", font=("Consolas", 9), fg=GRAY_COLOR, bg=BG_COLOR)
+volume_label = tk.Label(matrix_content, text="(Timer beeps use system volume - Media has independent control)", font=("Consolas", 9), fg=MATRIX_DIM_GREEN, bg=MATRIX_BG)
 
 def pack_matrix_view():
     matrix_scrollbar.pack(side="right", fill="y")
     matrix_scroll.pack(side="left", fill="both", expand=True)
-    timer1_frame.pack(fill="x", pady=8, padx=18)
-    sep.pack(fill="x", pady=8, padx=28)
-    timer2_frame.pack(fill="x", pady=8, padx=18)
-    media_frame.pack(fill="x", pady=14, padx=18)
-    volume_label.pack(pady=8)
+    matrix_header_canvas.pack(fill="x", pady=(12, 8), padx=22)
+    timer1_frame.pack(fill="x", pady=7, padx=22)
+    sep.pack(fill="x", pady=7, padx=32)
+    timer2_frame.pack(fill="x", pady=7, padx=22)
+    media_frame.pack(fill="x", pady=12, padx=22)
+    volume_label.pack(pady=4)
+    root.after_idle(update_matrix_header)
     root.after_idle(sync_matrix_scroll_region)
 
 top_frame.pack(fill="x", pady=5)
 pack_matrix_view()
+root.after_idle(apply_custom_background)
 # Global hotkey bindings (case-insensitive)
 root.bind("<m>", lambda e: switch_skin("Matrix"))
 root.bind("<M>", lambda e: switch_skin("Matrix"))
@@ -1273,10 +1322,5 @@ root.bind("<i>", lambda e: switch_skin("Metals"))
 root.bind("<I>", lambda e: switch_skin("Metals"))
 root.bind("<w>", lambda e: switch_skin("Weather"))
 root.bind("<W>", lambda e: switch_skin("Weather"))
-root.bind("<b>", lambda e: switch_skin("Break Time"))
-root.bind("<B>", lambda e: switch_skin("Break Time"))
-root.bind("<r>", lambda e: switch_skin("Rocket Launches"))
-root.bind("<R>", lambda e: switch_skin("Rocket Launches"))
-root.bind("<p>", lambda e: switch_skin("Podcasts"))
-root.bind("<P>", lambda e: switch_skin("Podcasts"))
 root.mainloop()
+
