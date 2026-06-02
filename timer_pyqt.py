@@ -248,6 +248,11 @@ class TimerPage(QWidget):
         layout.addWidget(self.long)
         self.media_map = media_map
         self.media_channel = pygame.mixer.Channel(1) if pygame.mixer.get_init() else None
+        self.media_active = False
+        self.media_was_busy = False
+        self.media_poll = QTimer(self)
+        self.media_poll.timeout.connect(self.check_media_finished)
+        self.media_poll.start(1000)
         media_layout = QGridLayout()
         self.media_panel = GlassPanel(media_layout)
         media_layout.addWidget(QLabel("MEDIA PLAYER"), 0, 0, 1, 5)
@@ -278,16 +283,20 @@ class TimerPage(QWidget):
 
     def selected_media(self):
         if self.shuffle.isChecked() and self.media_map:
-            name = random.choice(list(self.media_map.keys()))
+            names = list(self.media_map.keys())
+            current = self.media_combo.currentText()
+            choices = [name for name in names if name != current] or names
+            name = random.choice(choices)
             self.media_combo.setCurrentText(name)
             return name
         return self.media_combo.currentText()
 
-    def play_media(self):
+    def play_media(self, name=None):
         if not self.media_channel:
             self.now.setText("Audio unavailable")
             return
-        name = self.selected_media()
+        name = name or self.selected_media()
+        self.media_combo.setCurrentText(name)
         path = self.media_map.get(name)
         if not path:
             return
@@ -295,19 +304,38 @@ class TimerPage(QWidget):
         sound = pygame.mixer.Sound(path)
         self.media_channel.set_volume(self.volume.value() / 100)
         self.media_channel.play(sound)
+        self.media_active = True
+        self.media_was_busy = True
         self.now.setText(f"Playing: {name}")
 
     def stop_media(self):
         if self.media_channel:
             self.media_channel.stop()
+        self.media_active = False
+        self.media_was_busy = False
         self.now.setText("Stopped")
 
     def next_media(self):
         names = list(self.media_map.keys())
         if names:
-            idx = (self.media_combo.currentIndex() + 1) % len(names)
-            self.media_combo.setCurrentIndex(idx)
-            self.play_media()
+            if self.shuffle.isChecked():
+                current = self.media_combo.currentText()
+                choices = [name for name in names if name != current] or names
+                name = random.choice(choices)
+                self.play_media(name)
+            else:
+                idx = (self.media_combo.currentIndex() + 1) % len(names)
+                self.media_combo.setCurrentIndex(idx)
+                self.play_media(self.media_combo.currentText())
+
+    def check_media_finished(self):
+        if not self.media_channel or not self.media_active:
+            return
+        busy = self.media_channel.get_busy()
+        if self.media_was_busy and not busy:
+            self.next_media()
+            return
+        self.media_was_busy = busy
 
 
 class NewsPage(QWidget):
@@ -638,7 +666,7 @@ class TimerWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Pomodoro Timer")
-        self.setMinimumSize(620, 440)
+        self.setMinimumSize(360, 260)
         self.resize(1120, 760)
         try:
             self.setWindowIcon(QIcon(str(resource_path("timer.ico"))))

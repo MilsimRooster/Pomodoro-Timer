@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['E:\\games\\timer\\timer_pyqt.py'],
+    ['E:\\games\\Timer\\timer_pyqt.py'],
     pathex=[],
     binaries=[],
-    datas=[('E:\\games\\timer\\timer.ico', '.'), ('E:\\games\\timer\\timer_icon.png', '.')],
+    datas=[('E:\\games\\Timer\\timer.ico', '.'), ('E:\\games\\Timer\\timer_icon.png', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -35,5 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['E:\\games\\timer\\timer.ico'],
+    icon=['E:\\games\\Timer\\timer.ico'],
 )
