@@ -13,8 +13,20 @@ from pathlib import Path
 
 import pygame
 import requests
-from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QObject
-from PyQt6.QtGui import QAction, QColor, QIcon, QMovie, QPainter, QPixmap
+from PyQt6.QtCore import QRectF, Qt, QTimer, pyqtSignal, QObject
+from PyQt6.QtGui import (
+    QAction,
+    QBrush,
+    QColor,
+    QIcon,
+    QLinearGradient,
+    QMovie,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QRadialGradient,
+)
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -148,8 +160,67 @@ class GlassPanel(QFrame):
     def __init__(self, layout=None):
         super().__init__()
         self.setObjectName("glassPanel")
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAutoFillBackground(False)
         if layout is not None:
             self.setLayout(layout)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        rect = QRectF(self.rect()).adjusted(1.0, 1.0, -1.0, -1.0)
+        radius = 8.0
+        path = QPainterPath()
+        path.addRoundedRect(rect, radius, radius)
+
+        body = QLinearGradient(rect.topLeft(), rect.bottomRight())
+        body.setColorAt(0.00, QColor(236, 250, 255, 50))
+        body.setColorAt(0.18, QColor(79, 143, 184, 44))
+        body.setColorAt(0.55, QColor(6, 16, 28, 92))
+        body.setColorAt(1.00, QColor(1, 7, 14, 116))
+        painter.fillPath(path, QBrush(body))
+
+        haze = QLinearGradient(rect.left(), rect.top(), rect.left(), rect.bottom())
+        haze.setColorAt(0.00, QColor(255, 255, 255, 40))
+        haze.setColorAt(0.24, QColor(225, 250, 255, 18))
+        haze.setColorAt(0.58, QColor(255, 255, 255, 4))
+        haze.setColorAt(1.00, QColor(6, 14, 24, 36))
+        painter.fillPath(path, QBrush(haze))
+
+        glare = QRadialGradient(rect.left() + rect.width() * 0.12, rect.top() + rect.height() * 0.08, rect.width() * 0.34)
+        glare.setColorAt(0.00, QColor(255, 255, 255, 88))
+        glare.setColorAt(0.34, QColor(255, 255, 255, 28))
+        glare.setColorAt(1.00, QColor(255, 255, 255, 0))
+        painter.fillPath(path, QBrush(glare))
+
+        bottom_glare = QRadialGradient(rect.left() + rect.width() * 0.78, rect.bottom(), rect.width() * 0.26)
+        bottom_glare.setColorAt(0.00, QColor(255, 255, 255, 62))
+        bottom_glare.setColorAt(0.30, QColor(174, 235, 255, 24))
+        bottom_glare.setColorAt(1.00, QColor(255, 255, 255, 0))
+        painter.fillPath(path, QBrush(bottom_glare))
+
+        top_edge = QLinearGradient(rect.left(), rect.top(), rect.right(), rect.top())
+        top_edge.setColorAt(0.00, QColor(255, 255, 255, 218))
+        top_edge.setColorAt(0.28, QColor(255, 255, 255, 142))
+        top_edge.setColorAt(0.78, QColor(186, 242, 255, 78))
+        top_edge.setColorAt(1.00, QColor(68, 174, 186, 146))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(QBrush(top_edge), 1.7))
+        painter.drawRoundedRect(rect, radius, radius)
+
+        painter.setPen(QPen(QColor(255, 255, 255, 38), 1.0))
+        painter.drawRoundedRect(rect.adjusted(3.0, 3.0, -3.0, -3.0), radius - 3.0, radius - 3.0)
+
+        glint_width = 2.2
+        painter.setPen(QPen(QColor(255, 255, 255, 214), glint_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(int(rect.left() + rect.width() * 0.08), int(rect.top() + 1), int(rect.left() + rect.width() * 0.34), int(rect.top() + 1))
+
+        right_edge = QColor(126, 239, 229, 122)
+        painter.setPen(QPen(right_edge, 1.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        painter.drawLine(int(rect.right() - 1), int(rect.top() + rect.height() * 0.18), int(rect.right() - 1), int(rect.bottom() - rect.height() * 0.18))
+
+        super().paintEvent(event)
 
 
 class BeepTimerPanel(GlassPanel):
@@ -750,22 +821,35 @@ class TimerWindow(QMainWindow):
             QLabel#title { font-size: 22px; font-weight: 800; }
             QLabel#sectionTitle { font-size: 18px; font-weight: 800; }
             QFrame#glassPanel {
-                background: rgba(8, 17, 29, 150);
-                border: 1px solid rgba(170, 219, 255, 138);
-                border-radius: 8px;
+                background: transparent;
+                border: none;
             }
             QLabel#panelTitle, QLabel#newsTitle { font-weight: 800; color: #ffffff; }
             QLabel#bigValue, QLabel#weatherTemp, QLabel#statusValue { font-size: 56px; font-weight: 800; color: #fffed7; }
             QPushButton, QToolButton, QComboBox, QSpinBox {
-                border: 1px solid rgba(150, 218, 255, 170);
-                border-radius: 6px;
-                background: rgba(18, 45, 70, 150);
+                border: 1px solid rgba(235, 252, 255, 176);
+                border-right-color: rgba(91, 215, 224, 160);
+                border-bottom-color: rgba(255, 255, 255, 88);
+                border-radius: 8px;
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 1,
+                    stop: 0 rgba(255, 255, 255, 62),
+                    stop: 0.17 rgba(65, 119, 154, 132),
+                    stop: 0.52 rgba(12, 31, 50, 108),
+                    stop: 1 rgba(4, 13, 25, 102)
+                );
                 color: #ffffff;
                 padding: 7px 10px;
             }
             QPushButton:hover, QToolButton:hover {
-                background: rgba(68, 143, 186, 172);
-                border-color: rgba(132, 222, 255, 190);
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 1,
+                    stop: 0 rgba(255, 255, 255, 96),
+                    stop: 0.19 rgba(112, 204, 244, 184),
+                    stop: 0.5 rgba(38, 112, 156, 154),
+                    stop: 1 rgba(7, 27, 48, 132)
+                );
+                border-color: #ffffff;
             }
             QScrollArea, QStackedWidget { border: none; background: transparent; }
             QScrollBar:vertical { background: rgba(8, 14, 22, 130); width: 12px; }

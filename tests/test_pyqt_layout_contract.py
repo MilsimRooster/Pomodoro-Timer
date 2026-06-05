@@ -9,6 +9,17 @@ class PyQtLayoutContractTests(unittest.TestCase):
         self.assertIn("if layout is not None:", source)
         self.assertNotIn("if layout:\n            self.setLayout(layout)", source)
 
+    def test_glass_panel_uses_liquid_glass_painter(self):
+        source = (Path(__file__).resolve().parents[1] / "timer_pyqt.py").read_text(encoding="utf-8")
+
+        self.assertIn("class GlassPanel(QFrame):", source)
+        self.assertIn("def paintEvent(self, event):", source)
+        self.assertIn("QLinearGradient", source)
+        self.assertIn("QRadialGradient", source)
+        self.assertIn("top_edge", source)
+        self.assertIn("right_edge", source)
+        self.assertIn("glint_width", source)
+
     def test_window_shell_has_small_resize_floor(self):
         source = (Path(__file__).resolve().parents[1] / "timer_pyqt.py").read_text(encoding="utf-8")
 
