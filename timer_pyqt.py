@@ -188,37 +188,62 @@ class GlassPanel(QFrame):
         haze.setColorAt(1.00, QColor(6, 14, 24, 36))
         painter.fillPath(path, QBrush(haze))
 
-        glare = QRadialGradient(rect.left() + rect.width() * 0.12, rect.top() + rect.height() * 0.08, rect.width() * 0.34)
-        glare.setColorAt(0.00, QColor(255, 255, 255, 88))
-        glare.setColorAt(0.34, QColor(255, 255, 255, 28))
+        glare = QRadialGradient(rect.left() + rect.width() * 0.16, rect.top() + rect.height() * 0.02, rect.width() * 0.62)
+        glare.setColorAt(0.00, QColor(255, 255, 255, 72))
+        glare.setColorAt(0.30, QColor(255, 255, 255, 26))
+        glare.setColorAt(0.62, QColor(255, 255, 255, 0))
         glare.setColorAt(1.00, QColor(255, 255, 255, 0))
         painter.fillPath(path, QBrush(glare))
 
+        surface_sheen = QLinearGradient(
+            rect.left() + rect.width() * 0.02,
+            rect.top() + rect.height() * 0.03,
+            rect.left() + rect.width() * 0.68,
+            rect.top() + rect.height() * 0.88,
+        )
+        surface_sheen.setColorAt(0.00, QColor(255, 255, 255, 0))
+        surface_sheen.setColorAt(0.18, QColor(255, 255, 255, 48))
+        surface_sheen.setColorAt(0.42, QColor(255, 255, 255, 12))
+        surface_sheen.setColorAt(0.78, QColor(255, 255, 255, 0))
+        surface_sheen.setColorAt(1.00, QColor(255, 255, 255, 0))
+        painter.fillPath(path, QBrush(surface_sheen))
+
         bottom_glare = QRadialGradient(rect.left() + rect.width() * 0.78, rect.bottom(), rect.width() * 0.26)
-        bottom_glare.setColorAt(0.00, QColor(255, 255, 255, 62))
-        bottom_glare.setColorAt(0.30, QColor(174, 235, 255, 24))
+        bottom_glare.setColorAt(0.00, QColor(255, 255, 255, 68))
+        bottom_glare.setColorAt(0.30, QColor(174, 235, 255, 30))
         bottom_glare.setColorAt(1.00, QColor(255, 255, 255, 0))
         painter.fillPath(path, QBrush(bottom_glare))
 
+        top_glare_path = QPainterPath()
+        top_glare_path.addRoundedRect(rect, radius, radius)
+        top_glare = QLinearGradient(rect.left(), rect.top(), rect.right(), rect.bottom())
+        top_glare.setColorAt(0.00, QColor(255, 255, 255, 0))
+        top_glare.setColorAt(0.18, QColor(255, 255, 255, 92))
+        top_glare.setColorAt(0.44, QColor(255, 255, 255, 22))
+        top_glare.setColorAt(0.68, QColor(126, 239, 229, 16))
+        top_glare.setColorAt(1.00, QColor(255, 255, 255, 0))
+        painter.fillPath(top_glare_path.intersected(path), QBrush(top_glare))
+
         top_edge = QLinearGradient(rect.left(), rect.top(), rect.right(), rect.top())
-        top_edge.setColorAt(0.00, QColor(255, 255, 255, 218))
-        top_edge.setColorAt(0.28, QColor(255, 255, 255, 142))
-        top_edge.setColorAt(0.78, QColor(186, 242, 255, 78))
-        top_edge.setColorAt(1.00, QColor(68, 174, 186, 146))
+        top_edge.setColorAt(0.00, QColor(255, 255, 255, 112))
+        top_edge.setColorAt(0.18, QColor(255, 255, 255, 62))
+        top_edge.setColorAt(0.56, QColor(186, 242, 255, 32))
+        top_edge.setColorAt(1.00, QColor(68, 174, 186, 84))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.setPen(QPen(QBrush(top_edge), 1.7))
+        painter.setPen(QPen(QBrush(top_edge), 1.25))
         painter.drawRoundedRect(rect, radius, radius)
 
         painter.setPen(QPen(QColor(255, 255, 255, 38), 1.0))
         painter.drawRoundedRect(rect.adjusted(3.0, 3.0, -3.0, -3.0), radius - 3.0, radius - 3.0)
 
-        glint_width = 2.2
-        painter.setPen(QPen(QColor(255, 255, 255, 214), glint_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-        painter.drawLine(int(rect.left() + rect.width() * 0.08), int(rect.top() + 1), int(rect.left() + rect.width() * 0.34), int(rect.top() + 1))
-
-        right_edge = QColor(126, 239, 229, 122)
-        painter.setPen(QPen(right_edge, 1.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-        painter.drawLine(int(rect.right() - 1), int(rect.top() + rect.height() * 0.18), int(rect.right() - 1), int(rect.bottom() - rect.height() * 0.18))
+        side_glare_path = QPainterPath()
+        side_glare_path.addRoundedRect(rect, radius, radius)
+        side_glare = QLinearGradient(rect.left(), rect.top(), rect.right(), rect.top())
+        side_glare.setColorAt(0.00, QColor(255, 255, 255, 0))
+        side_glare.setColorAt(0.64, QColor(255, 255, 255, 0))
+        side_glare.setColorAt(0.86, QColor(126, 239, 229, 48))
+        side_glare.setColorAt(1.00, QColor(255, 255, 255, 0))
+        painter.fillPath(side_glare_path.intersected(path), QBrush(side_glare))
 
         super().paintEvent(event)
 
